@@ -10,6 +10,26 @@ const User = require('./models/user');
 
 const app = express();
 
+const events = eventIds => {
+    return Event.find({_id: {$in: eventIds}})
+    .then(events=>{
+        return events.map(event=>{
+            return {...event._doc, _id: event.id, creator: user.bind(this, event.creator)}
+        });
+    })
+    .catch(err=>{throw err;})
+};
+
+const user = userId => {
+    return User.findById(userId)
+    .then(user=>{
+        return {...user._doc, _id: user.id, createdEvents: events.bind(this, user._doc.createdEvents)};
+    })
+    .catch(err=>{
+        throw err;
+    })
+};
+
 //const events = [];
 
 app.use(bodyParser.json());
@@ -28,12 +48,14 @@ app.use('/graphql', graphqlHttp({
             description: String!
             price: Float!
             date: String!
+            creator: User!
         }
         
         type User {
             _id: ID!
             email: String!
             password: String
+            createdEvents: [Event!]
         }
 
         input EventInput {
@@ -64,13 +86,18 @@ app.use('/graphql', graphqlHttp({
     `), // would be defined by the 'graphql' package
     rootValue: {
         events: () => {
-           return Event.find().then(events=>{
+           return Event.find()         //to ppulate the reference declared in the event type
+            .then(events=>{
                 return events.map(event => {
-                    return {...event._doc, _id: event._doc._id.toString()};
+                    return {...event._doc,
+                         _id: event._doc._id.toString(),
+                         creator: user.bind(this,event._doc.creator)
+                        };
                 });
-           }).catch(err=>{
+            })
+            .catch(err=>{
                 throw err;
-           });
+             });
             //return events;
         },
         createEvent: (args) => {
@@ -91,8 +118,10 @@ app.use('/graphql', graphqlHttp({
             let createdEvent;
             //events.push(event);
             return event.save().then(result => {
-                createdEvent = {...result._doc};
-                returnUser.findById('631c095f93db90935dbded8b');
+                createdEvent = {...result._doc,
+                    creator: user.bind(this, result._doc.creator)
+                };
+                return User.findById('631c095f93db90935dbded8b');
                 //console.log(result);
                 //return {...result._doc};
             }).then(user=>{
